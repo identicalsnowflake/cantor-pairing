@@ -31,7 +31,7 @@
 -- @
 -- data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic)
 --
--- instance Cantor MyType where
+-- instance Cantor a => Cantor (Tree a) where
 --   cardinality = Countable
 -- @
 --

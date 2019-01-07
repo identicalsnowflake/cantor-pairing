@@ -11,7 +11,7 @@ import Cantor
 
 data MyType = MyType {
     value1 :: [ Maybe Bool ]
-  , value1 :: Integer
+  , value2 :: Integer
   } deriving (Generic)
 
 instance Cantor MyType
@@ -22,7 +22,7 @@ A warning: this package will work with recursive types, but you *must* manually 
 ```haskell
 data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic)
 
-instance Cantor MyType where
+instance Cantor a => Cantor (Tree a) where
   cardinality = Countable
 ```
 
