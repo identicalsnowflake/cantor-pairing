@@ -26,7 +26,7 @@ instance Cantor MyType where
   cardinality = Countable
 ```
 
-If your type is finite, you can specify this by deriving the @Finite@ typeclass, which is a subclass of @Cantor@:
+If your type is finite, you can specify this by deriving the `Finite` typeclass, which is a subclass of `Cantor`:
 
 ## Finite example
 ```haskell
