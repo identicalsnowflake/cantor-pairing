@@ -20,7 +20,7 @@
 --
 -- data MyType = MyType {
 --     value1 :: [ Maybe Bool ]
---   , value1 :: Integer
+--   , value2 :: Integer
 --   } deriving (Generic)
 --
 -- instance Cantor MyType
