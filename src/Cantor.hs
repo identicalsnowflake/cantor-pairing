@@ -624,11 +624,6 @@ instance (GCantor a , GCantor b) => GCantor (a :+: b) where
     (Countable , Finite _) -> case gToCantor i of
       L1 x -> R1 x
       R1 x -> L1 x
-    -- (Countable , Finite cb) -> if i < 2 * cb
-    --   then case divModInteger i 2 of
-    --     (# k , 1 #) -> L1 $ gToCantor k -- bias the finite half or risk looping!
-    --     (# k , _ #) -> R1 $ gToCantor k
-    --   else L1 $ gToCantor (i - cb)
     _ -> case divModInteger i 2 of
       (# k , 0 #) -> L1 $ gToCantor k
       (# k , _ #) -> R1 $ gToCantor k
