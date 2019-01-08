@@ -64,6 +64,7 @@ import Data.Functor.Const
 import Data.Proxy
 import Math.NumberTheory.Powers.Squares (integerSquareRoot')
 import Data.Void
+import Data.Bits (finiteBitSize)
 import qualified Data.Map as M
 
 
@@ -218,7 +219,7 @@ instance Cantor Int64 where
 
 instance Finite Int
 instance Cantor Int where
-  cardinality = Finite $ 2 ^ (64 :: Integer)
+  cardinality = Finite $ 2 ^ (finiteBitSize @Int undefined)
   toCantor = fromInteger . toCantor @Integer
   fromCantor = fromCantor @Integer . toInteger
 
