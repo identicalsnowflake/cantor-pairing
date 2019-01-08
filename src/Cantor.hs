@@ -223,6 +223,12 @@ instance Cantor Int where
   toCantor = fromInteger . toCantor @Integer
   fromCantor = fromCantor @Integer . toInteger
 
+instance Finite Word
+instance Cantor Word where
+  cardinality = Finite $ 2 ^ (finiteBitSize @Word undefined)
+  toCantor = fromInteger . toCantor @Integer
+  fromCantor = fromCantor @Integer . toInteger
+
 instance Finite Word8
 instance Cantor Word8 where
   cardinality = Finite $ 2 ^ (8 :: Integer)
@@ -615,19 +621,24 @@ instance (GCantor a , GCantor b) => GCantor (a :+: b) where
         (# k , 0 #) -> L1 $ gToCantor k
         (# k , _ #) -> R1 $ gToCantor k
       else R1 $ gToCantor (i - ca)
-    (Countable , Finite cb) -> if i < 2 * cb
-      then case divModInteger i 2 of
-        (# k , 0 #) -> L1 $ gToCantor k
-        (# k , _ #) -> R1 $ gToCantor k
-      else L1 $ gToCantor (i - cb)
+    (Countable , Finite _) -> case gToCantor i of
+      L1 x -> R1 x
+      R1 x -> L1 x
+    -- (Countable , Finite cb) -> if i < 2 * cb
+    --   then case divModInteger i 2 of
+    --     (# k , 1 #) -> L1 $ gToCantor k -- bias the finite half or risk looping!
+    --     (# k , _ #) -> R1 $ gToCantor k
+    --   else L1 $ gToCantor (i - cb)
     _ -> case divModInteger i 2 of
       (# k , 0 #) -> L1 $ gToCantor k
       (# k , _ #) -> R1 $ gToCantor k
 
   gFromCantor (L1 x) = case gCardinality @b of
-    Finite cb -> case gFromCantor x of
-      0 -> 0
-      i -> i + min cb i
+    Finite cb -> case gCardinality @a of
+      Countable -> gFromCantor @(b :+: a) $ R1 x
+      _ -> case gFromCantor x of
+        0 -> 0
+        i -> i + min cb i
     Countable -> case gFromCantor x of
       0 -> 0
       i -> 2 * i
@@ -635,9 +646,11 @@ instance (GCantor a , GCantor b) => GCantor (a :+: b) where
     Finite ca -> case gFromCantor x of
       0 -> 1
       i -> i + min ca (i + 1)
-    Countable -> case gFromCantor x of
-      0 -> 1
-      i -> 2 * i + 1
+    Countable -> case gCardinality @b of
+      Finite _ -> gFromCantor @(b :+: a) $ L1 x
+      Countable -> case gFromCantor x of
+        0 -> 1
+        i -> 2 * i + 1
  
 -- this SHOULD work at least in basic cases,
 -- but GHC generic deriving does not properly distinguish between

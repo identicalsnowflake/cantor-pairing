@@ -13,6 +13,16 @@ import Data.Void
 
 import Cantor
 
+data TreeL a = NodeL | BranchL (TreeL a) a (TreeL a) deriving (Generic,Eq)
+
+instance Cantor a => Cantor (TreeL a) where
+  cardinality = Countable
+
+data TreeR a = BranchR (TreeR a) a (TreeR a) | NodeR deriving (Generic,Eq)
+
+instance Cantor a => Cantor (TreeR a) where
+  cardinality = Countable
+
 
 instance (Finite a , Cantor b) => Eq (a -> b) where
   (==) f g = fmap (fromCantor . f) cantorEnumeration == fmap (fromCantor . g) cantorEnumeration
@@ -105,6 +115,13 @@ main = hspec $ do
     
     it "for [ C -> Integer ]" $
       (checkUISO @([ (C -> Integer) ])) `shouldBe` True
+
+    it "for TreeL Bool" $
+      (checkUISO @(TreeL Bool)) `shouldBe` True      
+
+    it "for TreeR Bool" $
+      (checkUISO @(TreeR Bool)) `shouldBe` True      
+
     
   where
     fcheckUISO :: forall a . (Eq a , Finite a) => Bool
