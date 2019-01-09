@@ -326,19 +326,41 @@ instance GCantor U1 where
   gToCantor _ = U1
   gFromCantor _ = 0
 
-nary :: Integer -> ESpace a -> ESpace [ a ]
-nary 0 _ = undefined
-nary 1 (ESpace c t f) = ESpace c (\i -> [ t i ]) $ \case
-  [ x ] -> f x
-  _ -> undefined
-nary i es = case es *** nary (i - 1) es of
-  ESpace c t f -> ESpace c t' f'
-    where
-      t' j = case t j of
-        (a , as) -> a : as
 
-      f' (a : as) = f (a , as)
-      f' _ = undefined
+-- just get in a position where we can use stimes for nary to get the nice algorithm
+data ES a = ES !Int (ESpace (Endo [ a ])) (ESpace [ a ])
+
+instance Semigroup (ES a) where
+  (<>) (ES a x x') (ES b y y') = ES (a + b) s1 s2
+    where
+      s1 :: ESpace (Endo [ a ])
+      s1 = case x ***  y of
+        (ESpace c f _) -> ESpace c f' undefined
+          where
+            f' :: Integer -> Endo [ a ]
+            f' i = case f i of
+             (xs , ys) -> xs <> ys
+
+      s2 :: ESpace [ a ]
+      s2 = case x' *** y' of
+        (ESpace c _ t) -> ESpace c undefined t'
+          where
+            t' :: [ a ] -> Integer
+            t' = t . splitAt a
+
+nary :: forall a . Integer -> ESpace a -> ESpace [ a ]
+nary 0 _ = undefined
+nary i (ESpace c f t) = case stimes i es' of
+  (ES _ (ESpace c' f' _) (ESpace _ _ t')) -> ESpace c' (flip appEndo [] . f') t'
+  where
+    toE :: [ a ] -> Endo [ a ]
+    toE = Endo . (<>)
+    
+    es' :: ES a
+    es' = ES 1 (ESpace c (\j -> toE [ f j ]) undefined) $ ESpace c undefined $ \case
+      [ x ] -> t x
+      _ -> error "Bounds error."
+
 
 infixr 7 ***
 (***) :: forall a b . ESpace a -> ESpace b -> ESpace (a , b)

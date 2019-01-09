@@ -120,7 +120,7 @@ main = hspec $ do
       (checkUISO @(TreeL Bool)) `shouldBe` True      
 
     it "for TreeR Bool" $
-      (checkUISO @(TreeR Bool)) `shouldBe` True      
+      (checkUISO @(TreeR Bool)) `shouldBe` True
 
     
   where
