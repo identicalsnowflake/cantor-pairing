@@ -223,12 +223,6 @@ instance Cantor Int where
   toCantor = fromInteger . toCantor @Integer
   fromCantor = fromCantor @Integer . toInteger
 
-instance Finite Word
-instance Cantor Word where
-  cardinality = Finite $ 2 ^ (finiteBitSize @Word undefined)
-  toCantor = fromInteger . toCantor @Integer
-  fromCantor = fromCantor @Integer . toInteger
-
 instance Finite Word8
 instance Cantor Word8 where
   cardinality = Finite $ 2 ^ (8 :: Integer)
@@ -252,6 +246,12 @@ instance Cantor Word64 where
   cardinality = Finite $ 2 ^ (64 :: Integer)
   toCantor = fromIntegral
   fromCantor = fromIntegral
+
+instance Finite Word
+instance Cantor Word where
+  cardinality = Finite $ 2 ^ (finiteBitSize @Word undefined)
+  toCantor = fromIntegral 
+  fromCantor =  fromIntegral
 
 instance Finite Char
 instance Cantor Char where
