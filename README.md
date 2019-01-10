@@ -16,14 +16,13 @@ data MyType = MyType {
 
 instance Cantor MyType
 ```
-A warning: this package will work with recursive types, but you *must* manually specify the cardinality. This unfortunately is necessary due to GHC generics marking all fields as recursive, regardless of whether or not they actually are. Still, it's straightforward to manually specify the cardinality:
+This should work nicely even with simple inductive types:
 
 ## Recursive example
 ```haskell
 data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic)
 
-instance Cantor a => Cantor (Tree a) where
-  cardinality = Countable
+instance Cantor a => Cantor (Tree a)
 ```
 
 If your type is finite, you can specify this by deriving the `Finite` typeclass, which is a subclass of `Cantor`:

@@ -15,13 +15,11 @@ import Cantor
 
 data TreeL a = NodeL | BranchL (TreeL a) a (TreeL a) deriving (Generic,Eq)
 
-instance Cantor a => Cantor (TreeL a) where
-  cardinality = Countable
+instance Cantor a => Cantor (TreeL a)
 
 data TreeR a = BranchR (TreeR a) a (TreeR a) | NodeR deriving (Generic,Eq)
 
-instance Cantor a => Cantor (TreeR a) where
-  cardinality = Countable
+instance Cantor a => Cantor (TreeR a)
 
 
 instance (Finite a , Cantor b) => Eq (a -> b) where
