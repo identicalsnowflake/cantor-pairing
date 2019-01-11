@@ -1,16 +1,13 @@
-{-# LANGUAGE IncoherentInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UnboxedTuples #-}
 
@@ -69,7 +66,6 @@ import Data.Proxy
 import Math.NumberTheory.Powers.Squares (integerSquareRoot')
 import Data.Void
 import Data.Bits (finiteBitSize)
-import Data.Kind
 import qualified Data.Map as M
 
 
@@ -138,20 +134,20 @@ class Cantor a => Finite a where
 class Cantor a where
   cardinality :: Cardinality
   
-  default cardinality :: GCantor' (ToStruct a (Rep a)) (Rep a) => Cardinality
-  cardinality = gCardinality' @(ToStruct a (Rep a)) @(Rep a)
+  default cardinality :: GCantor a (Rep a) => Cardinality
+  cardinality = gCardinality' @a @(Rep a)
   
   toCantor :: Integer -> a -- ideally this should be `Fin n -> a` (for finite types)
                            -- or `N` (for countably infinite types).
                            -- I chose not to use `Natural` from `GHC.Natural`
                            -- because it's turned out to be a huge pain and integrates
                            -- poorly with the haskell ecosystem
-  default toCantor :: (Generic a , GCantor' (ToStruct a (Rep a)) (Rep a)) => Integer -> a
-  toCantor = to . gToCantor' @(ToStruct a (Rep a)) @(Rep a)
+  default toCantor :: (Generic a , GCantor a (Rep a)) => Integer -> a
+  toCantor = to . gToCantor' @a @(Rep a)
 
   fromCantor :: a -> Integer
-  default fromCantor :: (Generic a , GCantor' (ToStruct a (Rep a)) (Rep a)) => a -> Integer
-  fromCantor = gFromCantor' @(ToStruct a (Rep a)) @(Rep a) . from
+  default fromCantor :: (Generic a , GCantor a (Rep a)) => a -> Integer
+  fromCantor = gFromCantor' @a @(Rep a) . from
   
 
 instance Cantor Natural where
@@ -492,64 +488,45 @@ cantorSplit i =
 cantorUnsplit :: (Integer , Integer) -> Integer
 cantorUnsplit (x , y) = (((x + y + 1) * (x + y)) `quot` 2) + y
 
--- thanks /u/yumiova for proposing this approach!
-data Struct
-    = Void
-    | Unit
-    | Const Type -- Reflects K1 cases that are *maybe not recursive*
-    | Recur Type -- Reflects K1 cases that are *definitively recursive*
-    | Struct :+ Struct
-    | Struct :* Struct
-
-type family ToStruct b i where
-    ToStruct b V1 = 'Void
-    ToStruct b U1 = 'Unit
-    ToStruct b (K1 i b) = 'Recur b -- If the constant node equals the
-                                   -- recursive case, mark as recursive
-    ToStruct b (K1 i a) = 'Const a
-    ToStruct b (M1 i c f) = ToStruct b f
-    ToStruct b (f :+: g) = ToStruct b f ':+ ToStruct b g
-    ToStruct b (f :*: g) = ToStruct b f ':* ToStruct b g
-
-class GCantor' (s :: Struct) f where
+class GCantor s f where
   hasExit :: Bool
   gCardinality' :: Cardinality
   gToCantor' :: Integer -> f a
   gFromCantor' :: f a -> Integer
 
-instance GCantor' 'Void V1 where
+instance GCantor s V1 where
   hasExit = False
   gCardinality' = Finite 0
   gToCantor' = undefined
   gFromCantor' = undefined
 
-instance GCantor' 'Unit U1 where
+instance GCantor s U1 where
   hasExit = True
   gCardinality' = Finite 1
   gToCantor' _ = U1
   gFromCantor' _ = 0
 
-instance {-# OVERLAPPING #-} Cantor a => GCantor' ('Recur a) (K1 i a) where
+instance {-# OVERLAPPING #-} Cantor a => GCantor a (K1 i a) where
   hasExit = False
   gCardinality' = Countable
   gToCantor' = K1 . toCantor
   gFromCantor' (K1 x) = fromCantor x
 
-instance Cantor b => GCantor' w (K1 i b) where
+instance {-# OVERLAPPABLE #-} Cantor b => GCantor w (K1 i b) where
   hasExit = True
   gCardinality' = cardinality @b
   gToCantor' = K1 . toCantor
   gFromCantor' (K1 x) = fromCantor x
 
-instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
-  hasExit = hasExit @s @a && hasExit @t @b
-  gCardinality' = case (gCardinality' @s @a , gCardinality' @t @b) of
+instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
+  hasExit = hasExit @s @a && hasExit @s @b
+  gCardinality' = case (gCardinality' @s @a , gCardinality' @s @b) of
     (Finite i , Finite j) -> Finite (i * j)
     (Finite 0 , _) -> Finite 0
     (_ , Finite 0) -> Finite 0
     _ -> Countable
 
-  gToCantor' i = case (gCardinality' @s @a , gCardinality' @t @b) of
+  gToCantor' i = case (gCardinality' @s @a , gCardinality' @s @b) of
     (Finite ca , Finite cb) ->
       let par_s = min ca cb -- small altitude of the parallelogram
           tri_l = par_s - 1
@@ -559,7 +536,7 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
       if i < tri_a
          then -- we're in the triangle, so just use cantor
               case cantorSplit i of
-                (a , b) -> (gToCantor' @s @a a :*: gToCantor' @t @b b)
+                (a , b) -> (gToCantor' @s @a a :*: gToCantor' @s @b b)
          else let j = i - tri_a -- shadowing would make this so much safer, alas...
                   par_l = max ca cb - tri_l
                   par_a = par_s * par_l in
@@ -574,11 +551,11 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
                                           then (c2 , c1)
                                           else (c1 , c2)
                           in
-                          (gToCantor' @s @a a :*: gToCantor' @t @b b)
+                          (gToCantor' @s @a a :*: gToCantor' @s @b b)
                  else let k = j - par_a
                           l = tri_a - (k + 1) in
                       case cantorSplit l of
-                        (a , b) -> (gToCantor' @s @a (ca - (a + 1)) :*: gToCantor' @t @b (cb - (b + 1)))
+                        (a , b) -> (gToCantor' @s @a (ca - (a + 1)) :*: gToCantor' @s @b (cb - (b + 1)))
     (Finite ca , Countable) ->
       let par_s = ca -- small altitude of the parallelogram
           tri_l = par_s - 1
@@ -586,7 +563,7 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
       in
       if i < tri_a
          then case cantorSplit i of
-                (a , b) -> (gToCantor' @s @a a :*: gToCantor' @t @b b)
+                (a , b) -> (gToCantor' @s @a a :*: gToCantor' @s @b b)
          else let j = i - tri_a -- shadowing would make this so much safer, alas...
               in
               case divModInteger j par_s of
@@ -595,7 +572,7 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
                       c2 = s
                       (a , b) = (c2 , c1)
                   in
-                  (gToCantor' @s @a a :*: gToCantor' @t @b b)
+                  (gToCantor' @s @a a :*: gToCantor' @s @b b)
       
     (Countable , Finite cb) ->
       let par_s = cb -- small altitude of the parallelogram
@@ -604,7 +581,7 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
       in
       if i < tri_a
          then case cantorSplit i of
-                (a , b) -> (gToCantor' @s @a a :*: gToCantor' @t @b b)
+                (a , b) -> (gToCantor' @s @a a :*: gToCantor' @s @b b)
          else let j = i - tri_a -- shadowing would make this so much safer, alas...
               in
               case divModInteger j par_s of
@@ -613,13 +590,13 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
                       c2 = s
                       (a , b) = (c1 , c2)
                   in
-                  (gToCantor' @s @a a :*: gToCantor' @t @b b)
+                  (gToCantor' @s @a a :*: gToCantor' @s @b b)
     _ -> case cantorSplit i of
-      (a , b) -> (gToCantor' @s @a a :*: gToCantor' @t @b b)
+      (a , b) -> (gToCantor' @s @a a :*: gToCantor' @s @b b)
   
-  gFromCantor' (a :*: b) = case (gCardinality' @s @a , gCardinality' @t @b) of
+  gFromCantor' (a :*: b) = case (gCardinality' @s @a , gCardinality' @s @b) of
     (Finite ca , Finite cb) ->
-      let (x , y) = (gFromCantor' @s @a a , gFromCantor' @t @b b)
+      let (x , y) = (gFromCantor' @s @a a , gFromCantor' @s @b b)
           par_s = min ca cb
           tri_l = par_s - 1
       in
@@ -637,7 +614,7 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
                       in
                       tri_a + x' + y' * par_s
     (Finite ca , Countable) ->
-      let (x , y) = (gFromCantor' @s @a a , gFromCantor' @t @b b)
+      let (x , y) = (gFromCantor' @s @a a , gFromCantor' @s @b b)
           par_s = ca
           tri_l = par_s - 1
       in
@@ -648,7 +625,7 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
               in
               tri_a + x' + y' * par_s
     (Countable , Finite cb) ->
-      let (x , y) = (gFromCantor' @s @a a , gFromCantor' @t @b b)
+      let (x , y) = (gFromCantor' @s @a a , gFromCantor' @s @b b)
           par_s = cb
           tri_l = par_s - 1
       in
@@ -658,50 +635,50 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':* t) (a :*: b) where
                   tri_a = (tri_l * (tri_l + 1)) `div` 2
               in
               tri_a + x' + y' * par_s
-    _ -> cantorUnsplit (gFromCantor' @s @a a , gFromCantor' @t @b b)
+    _ -> cantorUnsplit (gFromCantor' @s @a a , gFromCantor' @s @b b)
 
 
 -- in this instance, make sure we head towards the exit if there is one, otherwise we can get
 -- stuck endlessly in the labyrinth
-instance (GCantor' s a , GCantor' t b) => GCantor' (s ':+ t) (a :+: b) where
-  hasExit = hasExit @s @a || hasExit @t @b
-  gCardinality' = case (gCardinality' @s @a , gCardinality' @t @b) of
+instance (GCantor s a , GCantor s b) => GCantor s (a :+: b) where
+  hasExit = hasExit @s @a || hasExit @s @b
+  gCardinality' = case (gCardinality' @s @a , gCardinality' @s @b) of
     (Finite i , Finite j) -> Finite (i + j)
     _ -> Countable
 
-  gToCantor' i = case (gCardinality' @s @a , gCardinality' @t @b) of
+  gToCantor' i = case (gCardinality' @s @a , gCardinality' @s @b) of
     (Finite ca , Finite cb) -> if i < 2 * min ca cb
       then case divModInteger i 2 of
         (# k , 0 #) -> L1 $ gToCantor' @s @a k
-        (# k , _ #) -> R1 $ gToCantor' @t @b k
+        (# k , _ #) -> R1 $ gToCantor' @s @b k
       else if ca > cb
            then L1 $ gToCantor' @s @a (i - cb)
-           else R1 $ gToCantor' @t @b (i - ca)
+           else R1 $ gToCantor' @s @b (i - ca)
     (Finite ca , Countable) -> if i < 2 * ca
       then case divModInteger i 2 of
         (# k , 0 #) -> L1 $ gToCantor' @s @a k
-        (# k , _ #) -> R1 $ gToCantor' @t @b k
-      else R1 $ gToCantor' @t @b (i - ca)
-    (Countable , Finite _) -> case gToCantor' @(t ':+ s) @(b :+: a) i of
+        (# k , _ #) -> R1 $ gToCantor' @s @b k
+      else R1 $ gToCantor' @s @b (i - ca)
+    (Countable , Finite _) -> case gToCantor' @s @(b :+: a) i of
       L1 x -> R1 x
       R1 x -> L1 x
-    _ -> if not (hasExit @s @a) && hasExit @t @b
-            then case gToCantor' @(t ':+ s) @(b :+: a) i of
+    _ -> if not (hasExit @s @a) && hasExit @s @b
+            then case gToCantor' @s @(b :+: a) i of
               L1 x -> R1 x
               R1 x -> L1 x
             else case divModInteger i 2 of
              (# k , 0 #) -> L1 $ gToCantor' @s @a k
-             (# k , _ #) -> R1 $ gToCantor' @t @b k
+             (# k , _ #) -> R1 $ gToCantor' @s @b k
 
-  gFromCantor' (L1 x) = case gCardinality' @t @b of
+  gFromCantor' (L1 x) = case gCardinality' @s @b of
     Finite cb -> case gCardinality' @s @a of
-      Countable -> gFromCantor' @(t ':+ s) @(b :+: a) $ R1 x
+      Countable -> gFromCantor' @s @(b :+: a) $ R1 x
       _ -> case gFromCantor' @s @a x of
         0 -> 0
         i -> i + min cb i
     Countable -> case gCardinality' @s @a of
-      Countable -> if not (hasExit @s @a) && hasExit @t @b
-        then gFromCantor' @(t ':+ s) @(b :+: a) $ R1 x
+      Countable -> if not (hasExit @s @a) && hasExit @s @b
+        then gFromCantor' @s @(b :+: a) $ R1 x
         else case gFromCantor' @s @a x of
           0 -> 0
           i -> 2 * i
@@ -709,18 +686,18 @@ instance (GCantor' s a , GCantor' t b) => GCantor' (s ':+ t) (a :+: b) where
         0 -> 0
         i -> 2 * i
   gFromCantor' (R1 x) = case gCardinality' @s @a of
-    Finite ca -> case gFromCantor' @t @b x of
+    Finite ca -> case gFromCantor' @s @b x of
       0 -> 1
       i -> i + min ca (i + 1)
-    Countable -> case gCardinality' @t @b of
-      Finite _ -> gFromCantor' @(t ':+ s) @(b :+: a) $ L1 x
-      Countable -> if not (hasExit @s @a) && hasExit @t @b
-        then gFromCantor' @(t ':+ s) @(b :+: a) $ L1 x
-        else case gFromCantor' @t @b x of
+    Countable -> case gCardinality' @s @b of
+      Finite _ -> gFromCantor' @s @(b :+: a) $ L1 x
+      Countable -> if not (hasExit @s @a) && hasExit @s @b
+        then gFromCantor' @s @(b :+: a) $ L1 x
+        else case gFromCantor' @s @b x of
           0 -> 1
           i -> 2 * i + 1
 
-instance GCantor' s f => GCantor' s (M1 i t f) where
+instance GCantor s f => GCantor s (M1 i t f) where
   hasExit = hasExit @s @f
 
   gCardinality' = gCardinality' @s @f
