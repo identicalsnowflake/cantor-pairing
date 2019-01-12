@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -66,8 +67,14 @@ import Data.Proxy
 import Math.NumberTheory.Powers.Squares (integerSquareRoot')
 import Data.Void
 import Data.Bits (finiteBitSize)
-import qualified Data.Map as M
+import Data.Bits
+import Data.Foldable (foldl')
+import Math.NumberTheory.Logarithms
 
+import qualified Data.Map as M
+import qualified Data.Sequence
+import qualified Data.Set
+import qualified Data.IntSet
 
 -- internal value-level representation, currently only used for function enumeration
 data ESpace a = ESpace {
@@ -89,7 +96,9 @@ enumerateSpace (ESpace c te _) = case c of
   Finite i -> te <$> [ 0 .. (i - 1) ]
   Countable -> te <$> [ 0 .. ]
 
--- | Enumerates all values of a type by mapping @toCantor@ over the naturals.
+-- | Enumerates all values of a type by mapping @toCantor@ over the naturals or finite subset of naturals with the correct cardinality.
+-- 
+-- If the cardinality of the type is large and finite, (e.g., @IntSet@), you will need to try fixing the amount of items you want instead like @toCantor @IntSet <$> [ 0 .. 10 ]@. This is unfortunately necessary because even though the list is computed lazily in @cantorEnumeration@, its *size* is not, and the size of @IntSet@ is a *very* large number which is not feasible to compute even on a modern system (it has more than 200k terabytes of digits!). Note that if you defer to using even larger types like @Integer@ which have true non-finite cardinality instead of finite approximations like @Int@, you will naturally tend to avoid this problem.
 cantorEnumeration :: Cantor a => [ a ]
 cantorEnumeration = enumerateSpace defaultSpace
 
@@ -305,6 +314,108 @@ instance Finite a => Finite (Maybe a)
 instance (Finite a , Finite b) => Finite (Either a b)
 
 instance Cantor a => Cantor [ a ]
+instance Cantor a => Cantor (Data.Sequence.Seq a) where
+  cardinality = cardinality @[ a ]
+  toCantor = Data.Sequence.fromList . toCantor
+  fromCantor = fromCantor . foldr (:) []
+
+-- this algorithm is correct, but too slow for large a
+-- instance (Ord a , Finite a , Cantor b) => Cantor (M.Map a b) where
+--   cardinality = cardinality @(a -> Maybe b)
+--   toCantor i = m
+--     where
+--       m :: M.Map a b
+--       m = M.fromList $ mapMaybe (\(a,w) -> (,) a <$> w) $ zip (toCantor <$> [ 0 .. ]) (eToCantor es i)
+      
+--       es :: ESpace [ Maybe b ]
+--       es = nary (fCardinality @a) defaultSpace
+
+--   fromCantor g = eFromCantor es . fmap (\i -> M.lookup (toCantor i) g) $ [ 0 .. (fCardinality @a - 1) ]
+--     where
+--       es :: ESpace [ Maybe b ]
+--       es = nary (fCardinality @a) defaultSpace
+
+-- instance (Ord a , Finite a , Finite b) => Finite (M.Map a b)
+
+-- espace for `Set (Fin c)`
+fSetEnum :: Integer -> ESpace (Data.Set.Set Integer)
+fSetEnum c = ESpace (Finite (2 ^ c)) t f
+  where
+    t :: Integer -> Data.Set.Set Integer
+    t 0 = Data.Set.empty
+    t m = Data.Set.fromAscList $ foldr g mempty [ 0 .. (integerLog2 m + 1) ]
+      where
+        g :: Int -> [ Integer ] -> [ Integer ]
+        g i s = if testBit m i
+          then toInteger i : s
+          else s
+
+    f :: Data.Set.Set Integer -> Integer
+    f = foldl' g 0
+      where
+        g :: Integer -> Integer -> Integer
+        g a i = setBit a (fromInteger i)
+
+instance (Ord a , Finite a) => Cantor (Data.Set.Set a) where
+  cardinality = Finite (2 ^ fCardinality @a)
+  -- would be nice to map monotonic and save a log here, but that only works when
+  -- Ord a respects the ordering on Integer, which we have no assurance of
+  toCantor = Data.Set.map toCantor . eToCantor (fSetEnum (fCardinality @a))
+  fromCantor = eFromCantor (fSetEnum (fCardinality @a)) . Data.Set.map fromCantor
+
+instance (Ord a , Finite a) => Finite (Data.Set.Set a)
+
+-- espace for `IntSet (Fin c)`, where c is in proper range
+fSetEnum' :: Integer -> ESpace Data.IntSet.IntSet
+fSetEnum' c = ESpace (Finite (2 ^ c)) t f
+  where
+    t :: Integer -> Data.IntSet.IntSet
+    t 0 = Data.IntSet.empty
+    t m = Data.IntSet.fromAscList $ foldr g mempty [ 0 .. (integerLog2 m + 1) ]
+      where
+        g :: Int -> [ Int ] -> [ Int ]
+        g i s = if testBit m i
+          then i : s
+          else s
+
+    f :: Data.IntSet.IntSet -> Integer
+    f = Data.IntSet.foldl' g 0
+      where
+        g :: Integer -> Int -> Integer
+        g a i = setBit a i
+
+instance Cantor Data.IntSet.IntSet where
+  cardinality = Finite (2 ^ fCardinality @Int)
+  toCantor = eToCantor (fSetEnum' (fCardinality @Int))
+  fromCantor = eFromCantor (fSetEnum' (fCardinality @Int))
+
+instance Finite Data.IntSet.IntSet
+
+-- this algorithm is wrong; only works on Countable a.
+-- instance Cantor a => Cantor (Data.IntMap.Lazy.IntMap a) where
+--   cardinality = case cardinality @a of
+--     Countable -> Countable
+--     Finite c -> Finite $ (c + 1) ^ fCardinality @Int
+--   toCantor i = if i == 0 then mempty else case cantorSplit i of
+--     (j , k) -> Data.IntMap.Lazy.fromAscList $ zip (Data.IntSet.toAscList s) as
+--       where
+--         s :: Data.IntSet.IntSet
+--         s = toCantor (j + 1)
+
+--         es :: ESpace [ a ]
+--         es = nary (toInteger (Data.IntSet.size s)) defaultSpace
+
+--         as :: [ a ]
+--         as = eToCantor es k
+--   fromCantor m = if Data.IntMap.Lazy.null m then 0 else case unzip (Data.IntMap.Lazy.toAscList m) of
+--     (is , as) -> cantorUnsplit (fromCantor s , eFromCantor es as)
+--       where
+--         s = Data.IntSet.fromAscList is
+  
+--         es :: ESpace [ a ]
+--         es = nary (toInteger (Data.IntSet.size s)) defaultSpace
+
+-- instance Finite a => Finite (Data.IntMap.Lazy.IntMap a)
 
 
 -- ES is just an alias to get in a position to use stimes for nary to get the nice algorithm

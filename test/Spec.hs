@@ -27,6 +27,7 @@ instance (Finite a , Cantor b) => Eq (a -> b) where
 
 data C = R | G | B deriving (Generic,Eq,Ord,Show,Cantor,Finite)
 
+
 main :: IO ()
 main = hspec $ do
   describe "cardinality" $ do
