@@ -121,7 +121,10 @@ main = hspec $ do
     it "for TreeR Bool" $
       (checkUISO @(TreeR Bool)) `shouldBe` True
 
-    
+  describe "function enumeration even for large domains" $ do
+    it "should be fast" $
+      (head (cantorEnumeration @(Word -> Integer)) 42173) `shouldBe` 0
+  
   where
     fcheckUISO :: forall a . (Eq a , Finite a) => Bool
     fcheckUISO = e == fmap (toCantor . fromCantor) e
@@ -133,5 +136,5 @@ main = hspec $ do
     checkUISO = e == fmap (toCantor . fromCantor) e
       where
         e :: [ a ]
-        e = take 500 cantorEnumeration
+        e = take 5000 cantorEnumeration
 

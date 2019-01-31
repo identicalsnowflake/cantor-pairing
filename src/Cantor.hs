@@ -71,7 +71,6 @@ import Data.Bits
 import Data.Foldable (foldl')
 import Math.NumberTheory.Logarithms
 
-import qualified Data.Map as M
 import qualified Data.Sequence
 import qualified Data.Set
 import qualified Data.IntSet
@@ -108,21 +107,27 @@ instance forall a b . (Finite a , Cantor b) => Cantor (a -> b) where
     (Finite c1 , Finite c2) -> Finite (c2 ^ c1)
     _ -> Countable
 
-  toCantor i a = m M.! fromCantor a
+  toCantor i a = toCantor $ cantorExp (fCardinality @a) (fromCantor a) i
     where
-      m :: M.Map Integer b
-      m = M.fromList $ zip [ 0 .. ] (eToCantor es i)
-      
-      es :: ESpace [ b ]
-      es = nary (fCardinality @a) defaultSpace
+      cantorExp :: Integer -> Integer -> Integer -> Integer
+      cantorExp 1 _ f = f
+      cantorExp t x f = if x < b1
+        then cantorExp b1 x $ fst (cantorSplit f)
+        else cantorExp b2 (x - b1) $ snd (cantorSplit f)
+        where
+          (# t' , m' #) = divModInteger t 2
+          !b1 = t' + m'
+          b2 = t'
 
-  fromCantor g = eFromCantor es . fmap ((M.!) m) $ [ 0 .. (fCardinality @a - 1) ]
+  fromCantor g = uncantorExp (fCardinality @a) (fromCantor . g . toCantor)
     where
-      es :: ESpace [ b ]
-      es = nary (fCardinality @a) defaultSpace
-      
-      m :: M.Map Integer b
-      m = M.fromList $ (\x -> (fromCantor x , g x)) <$> enumerateSpace (defaultSpace @a)
+      uncantorExp :: Integer -> (Integer -> Integer) -> Integer
+      uncantorExp 1 f = f 0
+      uncantorExp t f = cantorUnsplit (uncantorExp b1 f , uncantorExp b2 (\x -> f (x + b1)))
+        where
+          (# t' , m' #) = divModInteger t 2
+          !b1 = t' + m'
+          b2 = t'
 
 instance (Finite a , Finite b) => Finite (a -> b)
 
@@ -418,167 +423,6 @@ instance Finite Data.IntSet.IntSet
 -- instance Finite a => Finite (Data.IntMap.Lazy.IntMap a)
 
 
--- ES is just an alias to get in a position to use stimes for nary to get the nice algorithm
-data ES a = ES !Int (ESpace (Endo [ a ])) (ESpace [ a ])
-
-instance Semigroup (ES a) where
-  (<>) (ES a x x') (ES b y y') = ES (a + b) s1 s2
-    where
-      s1 :: ESpace (Endo [ a ])
-      s1 = case x ***  y of
-        (ESpace c f _) -> ESpace c f' undefined
-          where
-            f' :: Integer -> Endo [ a ]
-            f' i = case f i of
-             (xs , ys) -> xs <> ys
-
-      s2 :: ESpace [ a ]
-      s2 = case x' *** y' of
-        (ESpace c _ t) -> ESpace c undefined t'
-          where
-            t' :: [ a ] -> Integer
-            t' = t . splitAt a
-
-nary :: forall a . Integer -> ESpace a -> ESpace [ a ]
-nary 0 _ = undefined
-nary i (ESpace c f t) = case stimes i es' of
-  (ES _ (ESpace c' f' _) (ESpace _ _ t')) -> ESpace c' (flip appEndo [] . f') t'
-  where
-    toE :: [ a ] -> Endo [ a ]
-    toE = Endo . (<>)
-    
-    es' :: ES a
-    es' = ES 1 (ESpace c (\j -> toE [ f j ]) undefined) $ ESpace c undefined $ \case
-      [ x ] -> t x
-      _ -> error "Bounds error."
-
-
-infixr 7 ***
-(***) :: forall a b . ESpace a -> ESpace b -> ESpace (a , b)
-(***) (ESpace (Finite ca) tea fea) (ESpace (Finite cb) teb feb) =
-  ESpace (Finite (ca * cb)) tec fec
-  where
-    tec i =
-      let par_s = min ca cb -- small altitude of the parallelogram
-          tri_l = par_s - 1
-          tri_a = (tri_l * (tri_l + 1)) `div` 2
-      in
-      -- optimisation - if tri_l is 0, one or both of these is trivial and we have a line
-      if i < tri_a
-         then -- we're in the triangle, so just use cantor
-              case cantorSplit i of
-                (a , b) -> (tea a , teb b)
-         else let j = i - tri_a -- shadowing would make this so much safer, alas...
-                  par_l = max ca cb - tri_l
-                  par_a = par_s * par_l in
-              if j < par_a
-                 then -- find their coordinates in the box
-                      -- and then skew them to the real grid
-                      case divModInteger j par_s of
-                        (# l , s #) ->
-                          let c1 = (l + tri_l) - s
-                              c2 = s
-                              (a , b) = if ca <= cb
-                                          then (c2 , c1)
-                                          else (c1 , c2)
-                          in
-                          (tea a , teb b)
-                 else let k = j - par_a
-                          l = tri_a - (k + 1) in
-                      case cantorSplit l of
-                        (a , b) -> (tea (ca - (a + 1)) , teb (cb - (b + 1)))
-
-    fec (a , b) =
-      let (x , y) = (fea a , feb b)
-          par_s = min ca cb
-          tri_l = par_s - 1
-      in
-      if y < tri_l - x
-         then cantorUnsplit $ (x , y)
-         else let x'' = ca - (x + 1)
-                  y'' = cb - (y + 1)
-              in
-              if y'' < tri_l - x''
-                 then (ca * cb) - (cantorUnsplit (x'' , y'') + 1)
-                 else let (x' , y') = if ca <= cb
-                                         then (x , y - (tri_l - x))
-                                         else (y , x - (tri_l - y))
-                          tri_a = (tri_l * (tri_l + 1)) `div` 2
-                      in
-                      tri_a + x' + y' * par_s
-(***) (ESpace (Finite ca) tea fea) (ESpace Countable teb feb) =
-  ESpace (if ca == 0 then Finite 0 else Countable) tec fec
-  where
-    tec i =
-      let par_s = ca -- small altitude of the parallelogram
-          tri_l = par_s - 1
-          tri_a = (tri_l * (tri_l + 1)) `div` 2
-      in
-      if i < tri_a
-         then case cantorSplit i of
-                (a , b) -> (tea a , teb b)
-         else let j = i - tri_a -- shadowing would make this so much safer, alas...
-              in
-              case divModInteger j par_s of
-                (# l , s #) ->
-                  let c1 = (l + tri_l) - s
-                      c2 = s
-                      (a , b) = (c2 , c1)
-                  in
-                  (tea a , teb b)
-
-    fec (a , b) =
-      let (x , y) = (fea a , feb b)
-          par_s = ca
-          tri_l = par_s - 1
-      in
-      if y < tri_l - x
-         then cantorUnsplit $ (x , y)
-         else let (x' , y') = (x , y - (tri_l - x))
-                  tri_a = (tri_l * (tri_l + 1)) `div` 2
-              in
-              tri_a + x' + y' * par_s
-(***) (ESpace Countable tea fea) (ESpace (Finite cb) teb feb) =
-  ESpace (if cb == 0 then Finite 0 else Countable) tec fec
-  where
-    tec i =
-      let par_s = cb -- small altitude of the parallelogram
-          tri_l = par_s - 1
-          tri_a = (tri_l * (tri_l + 1)) `div` 2
-      in
-      if i < tri_a
-         then case cantorSplit i of
-                (a , b) -> (tea a , teb b)
-         else let j = i - tri_a -- shadowing would make this so much safer, alas...
-              in
-              case divModInteger j par_s of
-                (# l , s #) ->
-                  let c1 = (l + tri_l) - s
-                      c2 = s
-                      (a , b) = (c1 , c2)
-                  in
-                  (tea a , teb b)
-
-    fec (a , b) =
-      let (x , y) = (fea a , feb b)
-          par_s = cb
-          tri_l = par_s - 1
-      in
-      if y < tri_l - x
-         then cantorUnsplit $ (x , y)
-         else let (x' , y') = (y , x - (tri_l - y))
-                  tri_a = (tri_l * (tri_l + 1)) `div` 2
-              in
-              tri_a + x' + y' * par_s
-(***) (ESpace _ tea fea) (ESpace _ teb feb) =
-  ESpace Countable tec fec
-  where
-    tec i = case cantorSplit i of
-      (a , b) -> (tea a , teb b)
-
-    fec (a , b) = cantorUnsplit (fea a , feb b)
-
-
 -- https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
 -- adapted for integer square rooting in the w, which should yield the same result
 -- but benchmarks significantly faster. buuut on closer inspection that makes no sense, since
@@ -587,14 +431,15 @@ infixr 7 ***
 -- also, maybe try this https://gist.github.com/orlp/3481770
 cantorSplit :: Integer -> (Integer , Integer)
 cantorSplit i = 
-  let w = (integerSquareRoot' (8 * i + 1) - 1) `div` 2 
-      -- original implementation (convert to/from float for the sqrt)
+  let -- original implementation (convert to/from float for the sqrt)
       -- w :: Int = floor (0.5 * (sqrt (8 * fromIntegral i + 1 :: Double) - 1))
       t = (w^(2 :: Int) + w) `quot` 2
       y = i - t
       x = w - y
   in
   (x , y)
+  where
+    w = (integerSquareRoot' (8 * i + 1) - 1) `div` 2 
 
 cantorUnsplit :: (Integer , Integer) -> Integer
 cantorUnsplit (x , y) = (((x + y + 1) * (x + y)) `quot` 2) + y
