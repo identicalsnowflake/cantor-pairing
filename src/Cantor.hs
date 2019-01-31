@@ -98,7 +98,7 @@ enumerateSpace (ESpace c te _) = case c of
 
 -- | Enumerates all values of a type by mapping @toCantor@ over the naturals or finite subset of naturals with the correct cardinality.
 -- 
--- If the cardinality of the type is large and finite, (e.g., @IntSet@), you will need to try fixing the amount of items you want instead like @toCantor @IntSet <$> [ 0 .. 10 ]@. This is unfortunately necessary because even though the list is computed lazily in @cantorEnumeration@, its *size* is not, and the size of @IntSet@ is a *very* large number which is not feasible to compute even on a modern system (it has more than 200k terabytes of digits!). Note that if you defer to using even larger types like @Integer@ which have true non-finite cardinality instead of finite approximations like @Int@, you will naturally tend to avoid this problem.
+-- If the cardinality of the type is large and finite, (e.g., @IntSet@), you will need to try fixing the amount of items you want instead like @toCantor \@IntSet <$> [ 0 .. 10 ]@. This is unfortunately necessary because even though the list is computed lazily in @cantorEnumeration@, its *size* is not, and the size of @IntSet@ is a *very* large number which is not feasible to compute even on a modern system (it has more than 200k terabytes of digits!). Note that if you defer to using even larger types like @Integer@ which have true non-finite cardinality instead of finite approximations like @Int@, you will naturally tend to avoid this problem.
 cantorEnumeration :: Cantor a => [ a ]
 cantorEnumeration = enumerateSpace defaultSpace
 
