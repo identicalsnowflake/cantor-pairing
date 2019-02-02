@@ -107,6 +107,7 @@ instance forall a b . (Finite a , Cantor b) => Cantor (a -> b) where
     (Finite c1 , Finite c2) -> Finite (c2 ^ c1)
     _ -> Countable
 
+  toCantor 0 _ = toCantor 0
   toCantor i a = toCantor $ cantorExp (fCardinality @a) (fromCantor a) i
     where
       cantorExp :: Integer -> Integer -> Integer -> Integer
