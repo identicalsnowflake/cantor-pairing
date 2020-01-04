@@ -20,6 +20,7 @@ source-repository head
 library
   exposed-modules:
       Cantor
+      Cantor.Huge
   -- other-modules:
   -- other-extensions:
   build-depends:       arithmoi >= 0.8.0.0 && < 0.11
@@ -41,6 +42,7 @@ test-suite spec
                 , containers
                 , hspec >= 2 && < 3
                 , mtl >= 2.2.2
+                , QuickCheck
   build-tool-depends: hspec-discover:hspec-discover
   default-language:    Haskell2010
 
