@@ -10,7 +10,6 @@ module Cantor.Huge
   ( Huge
   , pow
   , evalWith
-  , eval
   ) where
 
 import Prelude hiding ((^^))

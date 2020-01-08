@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -51,9 +52,11 @@
 
 module Cantor
        ( cantorEnumeration
-       , Cardinality(..)
+       , Cardinality(Countable)
+       , pattern Finite
        , Cantor(..)
-       , Finite(..)
+       , Finite
+       , fCardinality
        ) where
 
 import GHC.Generics
@@ -95,8 +98,8 @@ defaultSpace = ESpace {
 {-# INLINE enumerateSpace #-}
 enumerateSpace :: ESpace a -> [ a ]
 enumerateSpace (ESpace c te _) = case c of
-  Finite 0 -> []
-  Finite i -> te <$> takeWhile (\k -> fromInteger k < i) [0..]
+  Finite' 0 -> []
+  Finite' i -> te <$> takeWhile (\k -> fromInteger k < i) [0..]
   Countable -> te <$> [ 0 .. ]
 
 -- | Enumerates all values of a type by mapping @toCantor@ over the naturals or finite subset of naturals with the correct cardinality.
@@ -110,12 +113,12 @@ cantorEnumeration = enumerateSpace defaultSpace
 instance forall a b . (Finite a , Cantor b) => Cantor (a -> b) where
   {-# INLINE cardinality #-}
   cardinality = case (cardinality @a , cardinality @b) of
-    (Finite 0 , _) -> Finite 1 -- anything to the zero power is one (including zero!)
-    (Finite c1 , Finite c2) -> Finite (c2 `pow` c1)
+    (Finite' 0 , _) -> Finite' 1 -- anything to the zero power is one (including zero!)
+    (Finite' c1 , Finite' c2) -> Finite' (c2 `pow` c1)
     _ -> Countable
 
   toCantor 0 _ = toCantor 0
-  toCantor i a = toCantor $ cantorExp (evalWith (^) (fCardinality @a)) (fromCantor a) i
+  toCantor i a = toCantor $ cantorExp (fCardinality @a) (fromCantor a) i
     where
       cantorExp :: Integer -> Integer -> Integer -> Integer
       cantorExp 1 _ f = f
@@ -127,7 +130,7 @@ instance forall a b . (Finite a , Cantor b) => Cantor (a -> b) where
           !b1 = t' + m'
           b2 = t'
 
-  fromCantor g = uncantorExp (evalWith (^) (fCardinality @a)) (fromCantor . g . toCantor)
+  fromCantor g = uncantorExp (fCardinality @a) (fromCantor . g . toCantor)
     where
       uncantorExp :: Integer -> (Integer -> Integer) -> Integer
       uncantorExp 1 f = f 0
@@ -141,17 +144,29 @@ instance (Finite a , Finite b) => Finite (a -> b)
 
 -- | @Cardinality@ can be either @Finite@ or @Countable@. @Countable@ cardinality entails that a type has the same cardinality as the natural numbers. Note that not all infinite types are countable: for example, @Natural -> Natural@ is an infinite type, but it is not countably infinite; the basic intuition is that there is no possible way to enumerate all values of type @Natural -> Natural@ without "skipping" almost all of them. This is in contrast to the naturals, where despite their being infinite, we can trivially (by definition, in fact!) enumerate all of them without skipping any.
 data Cardinality =
-    Finite Huge
+    Finite' Huge
   | Countable
   deriving (Generic,Eq,Ord,Show)
 
+-- | Finite cardinality.
+pattern Finite :: Integer -> Cardinality
+pattern Finite n <- Finite' (evalWith (^) -> n)
+  where
+    Finite n = Finite' (fromInteger n)
+
+{-# COMPLETE Finite, Countable #-}
+
 -- | The @Finite@ typeclass simply entails that the @Cardinality@ of the set is finite.
 class Cantor a => Finite a where
-  {-# INLINE fCardinality #-}
-  fCardinality :: Huge
-  fCardinality = case cardinality @a of
-    Finite i -> i
+  {-# INLINE fCardinality' #-}
+  fCardinality' :: Huge
+  fCardinality' = case cardinality @a of
+    Finite' i -> i
     _ -> error "Expected finite cardinality, got Countable."
+
+-- | Cardinality of a finite type.
+fCardinality :: forall a. Finite a => Integer
+fCardinality = evalWith (^) (fCardinality' @a)
 
 -- | The @Cantor@ class gives a way to convert a type to and from the natural numbers, as well as specifies the cardinality of the type.
 class Cantor a where
@@ -216,7 +231,7 @@ instance Finite Void
 instance Finite Bool
 instance Cantor Bool where
   {-# INLINE cardinality #-}
-  cardinality = Finite 2
+  cardinality = Finite' 2
 
   {-# INLINE toCantor #-}
   toCantor 0 = False
@@ -230,7 +245,7 @@ instance Cantor Bool where
 instance Finite Int8
 instance Cantor Int8 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (8 :: Integer)
+  cardinality = Finite' $ 2 ^ (8 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromInteger . toCantor @Integer
   {-# INLINE fromCantor #-}
@@ -239,7 +254,7 @@ instance Cantor Int8 where
 instance Finite Int16
 instance Cantor Int16 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (16 :: Integer)
+  cardinality = Finite' $ 2 ^ (16 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromInteger . toCantor @Integer
   {-# INLINE fromCantor #-}
@@ -248,7 +263,7 @@ instance Cantor Int16 where
 instance Finite Int32
 instance Cantor Int32 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (32 :: Integer)
+  cardinality = Finite' $ 2 ^ (32 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromInteger . toCantor @Integer
   {-# INLINE fromCantor #-}
@@ -257,7 +272,7 @@ instance Cantor Int32 where
 instance Finite Int64
 instance Cantor Int64 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (64 :: Integer)
+  cardinality = Finite' $ 2 ^ (64 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromInteger . toCantor @Integer
   {-# INLINE fromCantor #-}
@@ -266,7 +281,7 @@ instance Cantor Int64 where
 instance Finite Int
 instance Cantor Int where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (finiteBitSize @Int undefined)
+  cardinality = Finite' $ 2 ^ (finiteBitSize @Int undefined)
   {-# INLINE toCantor #-}
   toCantor = fromInteger . toCantor @Integer
   {-# INLINE fromCantor #-}
@@ -275,7 +290,7 @@ instance Cantor Int where
 instance Finite Word8
 instance Cantor Word8 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (8 :: Integer)
+  cardinality = Finite' $ 2 ^ (8 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromIntegral
   {-# INLINE fromCantor #-}
@@ -284,7 +299,7 @@ instance Cantor Word8 where
 instance Finite Word16
 instance Cantor Word16 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (16 :: Integer)
+  cardinality = Finite' $ 2 ^ (16 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromIntegral
   {-# INLINE fromCantor #-}
@@ -293,7 +308,7 @@ instance Cantor Word16 where
 instance Finite Word32
 instance Cantor Word32 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (32 :: Integer)
+  cardinality = Finite' $ 2 ^ (32 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromIntegral
   {-# INLINE fromCantor #-}
@@ -302,7 +317,7 @@ instance Cantor Word32 where
 instance Finite Word64
 instance Cantor Word64 where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (64 :: Integer)
+  cardinality = Finite' $ 2 ^ (64 :: Integer)
   {-# INLINE toCantor #-}
   toCantor = fromIntegral
   {-# INLINE fromCantor #-}
@@ -311,7 +326,7 @@ instance Cantor Word64 where
 instance Finite Word
 instance Cantor Word where
   {-# INLINE cardinality #-}
-  cardinality = Finite $ 2 ^ (finiteBitSize @Word undefined)
+  cardinality = Finite' $ 2 ^ (finiteBitSize @Word undefined)
   {-# INLINE toCantor #-}
   toCantor = fromIntegral
   {-# INLINE fromCantor #-}
@@ -320,7 +335,7 @@ instance Cantor Word where
 instance Finite Char
 instance Cantor Char where
   {-# INLINE cardinality #-}
-  cardinality = Finite . fromIntegral $ (fromEnum (maxBound :: Char) :: Int) + 1
+  cardinality = Finite' . fromIntegral $ (fromEnum (maxBound :: Char) :: Int) + 1
   {-# INLINE toCantor #-}
   toCantor x = toEnum (fromIntegral x :: Int)
   {-# INLINE fromCantor #-}
@@ -397,7 +412,7 @@ instance Cantor a => Cantor (Data.Sequence.Seq a) where
 
 -- espace for `Set (Fin c)`
 fSetEnum :: Huge -> ESpace (Data.Set.Set Integer)
-fSetEnum c = ESpace (Finite (2 `pow` c)) t f
+fSetEnum c = ESpace (Finite' (2 `pow` c)) t f
   where
     t :: Integer -> Data.Set.Set Integer
     t 0 = Data.Set.empty
@@ -416,17 +431,17 @@ fSetEnum c = ESpace (Finite (2 `pow` c)) t f
 
 instance (Ord a , Finite a) => Cantor (Data.Set.Set a) where
   {-# INLINE cardinality #-}
-  cardinality = Finite (2 `pow` fCardinality @a)
+  cardinality = Finite' (2 `pow` fCardinality' @a)
   -- would be nice to map monotonic and save a log here, but that only works when
   -- Ord a respects the ordering on Integer, which we have no assurance of
-  toCantor = Data.Set.map toCantor . eToCantor (fSetEnum (fCardinality @a))
-  fromCantor = eFromCantor (fSetEnum (fCardinality @a)) . Data.Set.map fromCantor
+  toCantor = Data.Set.map toCantor . eToCantor (fSetEnum (fCardinality' @a))
+  fromCantor = eFromCantor (fSetEnum (fCardinality' @a)) . Data.Set.map fromCantor
 
 instance (Ord a , Finite a) => Finite (Data.Set.Set a)
 
 -- espace for `IntSet (Fin c)`, where c is in proper range
 fSetEnum' :: Huge -> ESpace Data.IntSet.IntSet
-fSetEnum' c = ESpace (Finite (2 `pow` c)) t f
+fSetEnum' c = ESpace (Finite' (2 `pow` c)) t f
   where
     t :: Integer -> Data.IntSet.IntSet
     t 0 = Data.IntSet.empty
@@ -445,9 +460,9 @@ fSetEnum' c = ESpace (Finite (2 `pow` c)) t f
 
 instance Cantor Data.IntSet.IntSet where
   {-# INLINE cardinality #-}
-  cardinality = Finite (2 `pow` fCardinality @Int)
-  toCantor = eToCantor (fSetEnum' (fCardinality @Int))
-  fromCantor = eFromCantor (fSetEnum' (fCardinality @Int))
+  cardinality = Finite' (2 `pow` fCardinality' @Int)
+  toCantor = eToCantor (fSetEnum' (fCardinality' @Int))
+  fromCantor = eFromCantor (fSetEnum' (fCardinality' @Int))
 
 instance Finite Data.IntSet.IntSet
 
@@ -509,7 +524,7 @@ instance GCantor s V1 where
   {-# INLINE hasExit #-}
   hasExit = False
   {-# INLINE gCardinality' #-}
-  gCardinality' = Finite 0
+  gCardinality' = Finite' 0
   gToCantor' = undefined
   gFromCantor' = undefined
 
@@ -517,7 +532,7 @@ instance GCantor s U1 where
   {-# INLINE hasExit #-}
   hasExit = True
   {-# INLINE gCardinality' #-}
-  gCardinality' = Finite 1
+  gCardinality' = Finite' 1
   {-# INLINE gToCantor' #-}
   gToCantor' _ = U1
   {-# INLINE gFromCantor' #-}
@@ -548,14 +563,14 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
   hasExit = hasExit @s @a && hasExit @s @b
   {-# INLINE gCardinality' #-}
   gCardinality' = case (gCardinality' @s @a , gCardinality' @s @b) of
-    (Finite i , Finite j) -> Finite (i * j)
-    (Finite 0 , _) -> Finite 0
-    (_ , Finite 0) -> Finite 0
+    (Finite' i , Finite' j) -> Finite' (i * j)
+    (Finite' 0 , _) -> Finite' 0
+    (_ , Finite' 0) -> Finite' 0
     _ -> Countable
 
   {-# INLINABLE gToCantor' #-}
   gToCantor' i = case (gCardinality' @s @a , gCardinality' @s @b) of
-    (Finite (evalWith (^) -> ca), Finite (evalWith (^) -> cb)) ->
+    (Finite ca, Finite cb) ->
       let par_s = min ca cb -- small altitude of the parallelogram
           tri_l = par_s - 1
           tri_a = (tri_l * (tri_l + 1)) `div` 2
@@ -584,7 +599,7 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
                           l = tri_a - (k + 1) in
                       case cantorSplit l of
                         (a , b) -> (gToCantor' @s @a (ca - (a + 1)) :*: gToCantor' @s @b (cb - (b + 1)))
-    (Finite (evalWith (^) -> ca), Countable) ->
+    (Finite ca, Countable) ->
       let par_s = ca -- small altitude of the parallelogram
           tri_l = par_s - 1
           tri_a = (tri_l * (tri_l + 1)) `div` 2
@@ -602,7 +617,7 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
                   in
                   (gToCantor' @s @a a :*: gToCantor' @s @b b)
 
-    (Countable , Finite (evalWith (^) -> cb)) ->
+    (Countable , Finite cb) ->
       let par_s = cb -- small altitude of the parallelogram
           tri_l = par_s - 1
           tri_a = (tri_l * (tri_l + 1)) `div` 2
@@ -624,7 +639,7 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
 
   {-# INLINABLE gFromCantor' #-}
   gFromCantor' (a :*: b) = case (gCardinality' @s @a , gCardinality' @s @b) of
-    (Finite (evalWith (^) -> ca), Finite (evalWith (^) -> cb)) ->
+    (Finite ca, Finite cb) ->
       let (x , y) = (gFromCantor' @s @a a , gFromCantor' @s @b b)
           par_s = min ca cb
           tri_l = par_s - 1
@@ -642,7 +657,7 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
                           tri_a = (tri_l * (tri_l + 1)) `div` 2
                       in
                       tri_a + x' + y' * par_s
-    (Finite (evalWith (^) -> ca), Countable) ->
+    (Finite ca, Countable) ->
       let (x , y) = (gFromCantor' @s @a a , gFromCantor' @s @b b)
           par_s = ca
           tri_l = par_s - 1
@@ -653,7 +668,7 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :*: b) where
                   tri_a = (tri_l * (tri_l + 1)) `div` 2
               in
               tri_a + x' + y' * par_s
-    (Countable , Finite (evalWith (^) -> cb)) ->
+    (Countable, Finite cb) ->
       let (x , y) = (gFromCantor' @s @a a , gFromCantor' @s @b b)
           par_s = cb
           tri_l = par_s - 1
@@ -674,24 +689,24 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :+: b) where
   hasExit = hasExit @s @a || hasExit @s @b
   {-# INLINE gCardinality' #-}
   gCardinality' = case (gCardinality' @s @a , gCardinality' @s @b) of
-    (Finite i , Finite j) -> Finite (i + j)
+    (Finite' i , Finite' j) -> Finite' (i + j)
     _ -> Countable
 
   {-# INLINABLE gToCantor' #-}
   gToCantor' i = case (gCardinality' @s @a , gCardinality' @s @b) of
-    (Finite (evalWith (^) -> ca), Finite (evalWith (^) -> cb)) -> if i < 2 * min ca cb
+    (Finite ca, Finite cb) -> if i < 2 * min ca cb
       then case divModInteger i 2 of
         (# k , 0 #) -> L1 $ gToCantor' @s @a k
         (# k , _ #) -> R1 $ gToCantor' @s @b k
       else if ca > cb
            then L1 $ gToCantor' @s @a (i - cb)
            else R1 $ gToCantor' @s @b (i - ca)
-    (Finite (evalWith (^) -> ca), Countable) -> if i < 2 * ca
+    (Finite ca, Countable) -> if i < 2 * ca
       then case divModInteger i 2 of
         (# k , 0 #) -> L1 $ gToCantor' @s @a k
         (# k , _ #) -> R1 $ gToCantor' @s @b k
       else R1 $ gToCantor' @s @b (i - ca)
-    (Countable , Finite _) -> case gToCantor' @s @(b :+: a) i of
+    (Countable , Finite{}) -> case gToCantor' @s @(b :+: a) i of
       L1 x -> R1 x
       R1 x -> L1 x
     _ -> if not (hasExit @s @a) && hasExit @s @b
@@ -704,7 +719,7 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :+: b) where
 
   {-# INLINABLE gFromCantor' #-}
   gFromCantor' (L1 x) = case gCardinality' @s @b of
-    Finite cb -> case gCardinality' @s @a of
+    Finite' cb -> case gCardinality' @s @a of
       Countable -> gFromCantor' @s @(b :+: a) $ R1 x
       _ -> case gFromCantor' @s @a x of
         0 -> 0
@@ -719,11 +734,11 @@ instance (GCantor s a , GCantor s b) => GCantor s (a :+: b) where
         0 -> 0
         i -> 2 * i
   gFromCantor' (R1 x) = case gCardinality' @s @a of
-    Finite ca -> case gFromCantor' @s @b x of
+    Finite' ca -> case gFromCantor' @s @b x of
       0 -> 1
       i -> i + evalWith (^) (min ca (fromInteger (i + 1)))
     Countable -> case gCardinality' @s @b of
-      Finite _ -> gFromCantor' @s @(b :+: a) $ L1 x
+      Finite{}  -> gFromCantor' @s @(b :+: a) $ L1 x
       Countable -> if not (hasExit @s @a) && hasExit @s @b
         then gFromCantor' @s @(b :+: a) $ L1 x
         else case gFromCantor' @s @b x of

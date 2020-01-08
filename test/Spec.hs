@@ -7,15 +7,11 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-import Control.Exception
 import Data.Void
 import GHC.Generics (Generic)
-import Numeric.Natural
 import Test.Hspec
-import Test.QuickCheck
 
 import Cantor
-import Cantor.Huge
 
 data TreeL a = NodeL | BranchL (TreeL a) a (TreeL a) deriving (Generic,Eq)
 
@@ -128,18 +124,6 @@ main = hspec $ do
   describe "function enumeration even for large domains" $ do
     it "should be fast" $
       (head (cantorEnumeration @(Word -> Int)) 42173) `shouldBe` 0
-
-  describe "instance Ord Huge" $ do
-    it "compares atomic expressions" $ property prop_compare_atomic
-    it "compares against constants"  $ property $
-      \(NonNegative n) h -> isSmall h ==>
-        fromInteger n `compare` h === fromInteger n `compare` eval h
-    it "matches Ord Natural" $ property $
-      \x y -> isSmall x ==> isSmall y ==>
-        x `compare` y === eval x `compare` eval y
-    it "is reflexive" $ property $
-      \(x :: Huge) -> x `compare` x === EQ
-
   where
     fcheckUISO :: forall a . (Eq a , Finite a) => Bool
     fcheckUISO = e == fmap (toCantor . fromCantor) e
@@ -152,58 +136,3 @@ main = hspec $ do
       where
         e :: [ a ]
         e = take 5000 cantorEnumeration
-
--------------------------------------------------------------------------------
--- Huge
-
-instance Arbitrary Huge where
-  arbitrary = frequency
-    [ (50, fromInteger . (`mod` 6) <$> arbitrary)
-    , (15, (+) <$> arbitrary <*> arbitrary)
-    , (15, (*) <$> arbitrary <*> arbitrary)
-    , ( 5, pow <$> arbitrary <*> arbitrary)
-    ]
-
-cap :: Natural
-cap = 2 ^ (2 ^ (16 :: Int) :: Int)
-
-data Capped = Capped Natural | TooLarge
-  deriving (Eq, Ord, Show)
-
-instance Num Capped where
-  _ + TooLarge = TooLarge
-  TooLarge + _ = TooLarge
-  Capped x + Capped y = fromIntegral (x + y)
-
-  _ * TooLarge = TooLarge
-  TooLarge * _ = TooLarge
-  Capped x * Capped y = fromIntegral (x * y)
-
-  negate = throw Underflow
-  abs = id
-  signum = const 1
-
-  fromInteger n = let m = fromInteger n in if m > cap then TooLarge else Capped m
-
-evalCapped :: Huge -> Capped
-evalCapped = evalWith f
-  where
-    f :: Capped -> Capped -> Capped
-    f _ TooLarge   = TooLarge
-    f x (Capped y) = x ^ y
-
-isSmall :: Huge -> Bool
-isSmall = (/= TooLarge) . evalCapped
-
-prop_compare_atomic
-  :: NonNegative Integer
-  -> NonNegative Integer
-  -> NonNegative Integer
-  -> NonNegative Integer
-  -> Property
-prop_compare_atomic (NonNegative x) (NonNegative y) (NonNegative u) (NonNegative v) =
-  foldl (.&&.) (property True) props
-  where
-    funcs = [const, (+), (*), pow]
-    props = [ prop (fxy (fromInteger x) (fromInteger y)) (fuv (fromInteger u) (fromInteger v)) | fxy <- funcs, fuv <- funcs ]
-    prop xy uv = xy `compare` uv === eval xy `compare` (eval uv :: Natural)
