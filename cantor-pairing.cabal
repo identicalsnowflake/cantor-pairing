@@ -23,7 +23,7 @@ library
   other-modules:
       Cantor.Huge
   build-depends:       arithmoi >= 0.8.0.0 && < 0.11
-                     , base >= 4.12.0.0 && < 4.14
+                     , base >= 4.12.0.0 && < 5
                      , containers >= 0.6.0.1 && < 0.7
                      , integer-gmp ^>= 1.0.2.0
                      , integer-logarithms >= 1.0.2.2 && < 2.0
