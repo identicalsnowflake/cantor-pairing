@@ -20,8 +20,8 @@ source-repository head
 library
   exposed-modules:
       Cantor
-  -- other-modules:
-  -- other-extensions:
+  other-modules:
+      Cantor.Huge
   build-depends:       arithmoi >= 0.8.0.0 && < 0.11
                      , base >= 4.12.0.0 && < 4.14
                      , containers >= 0.6.0.1 && < 0.7

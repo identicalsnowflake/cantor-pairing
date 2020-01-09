@@ -7,9 +7,9 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+import Data.Void
 import GHC.Generics (Generic)
 import Test.Hspec
-import Data.Void
 
 import Cantor
 
@@ -102,29 +102,28 @@ main = hspec $ do
   describe "uniqueness and isomorphism for countable types" $ do
     it "for C x Integer" $
       (checkUISO @(C , Integer)) `shouldBe` True
-    
+
     it "for Integer x C" $
       (checkUISO @(C , Integer)) `shouldBe` True
-    
+
     it "for Integer x Integer" $
       (checkUISO @(Integer , Integer)) `shouldBe` True
-    
+
     it "for C -> Integer" $
       (checkUISO @(C -> Integer)) `shouldBe` True
-    
+
     it "for [ C -> Integer ]" $
       (checkUISO @([ (C -> Integer) ])) `shouldBe` True
 
     it "for TreeL Bool" $
-      (checkUISO @(TreeL Bool)) `shouldBe` True      
+      (checkUISO @(TreeL Bool)) `shouldBe` True
 
     it "for TreeR Bool" $
       (checkUISO @(TreeR Bool)) `shouldBe` True
 
   describe "function enumeration even for large domains" $ do
     it "should be fast" $
-      (head (cantorEnumeration @(Word -> Integer)) 42173) `shouldBe` 0
-  
+      (head (cantorEnumeration @(Word -> Int)) 42173) `shouldBe` 0
   where
     fcheckUISO :: forall a . (Eq a , Finite a) => Bool
     fcheckUISO = e == fmap (toCantor . fromCantor) e
@@ -137,4 +136,3 @@ main = hspec $ do
       where
         e :: [ a ]
         e = take 5000 cantorEnumeration
-
