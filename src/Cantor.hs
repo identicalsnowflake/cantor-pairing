@@ -146,7 +146,11 @@ instance (Finite a , Finite b) => Finite (a -> b)
 data Cardinality =
     Finite' Huge
   | Countable
-  deriving (Generic,Eq,Ord,Show)
+  deriving (Generic,Eq,Ord)
+
+instance Show Cardinality where
+  show Countable = "Countable"
+  show (Finite i) = "Finite " <> show i
 
 -- | Finite cardinality.
 pattern Finite :: Integer -> Cardinality
