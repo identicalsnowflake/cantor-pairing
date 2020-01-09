@@ -34,3 +34,17 @@ data Color = Red | Green | Blue deriving (Generic)
 instance Cantor Color
 instance Finite Color
 ```
+
+## Mutually-recursive types
+
+If you have mutually-recursive types, unfortunately you'll need to manually specify the cardinality for now, but you can still get the to/from encodings for free:
+
+```haskell
+data Foo = FooNil | Foo Bool Bar deriving (Generic,Show)
+data Bar = BarNil | Bar Bool Foo deriving (Generic,Show)
+
+instance Cantor Foo where
+  cardinality = Countable
+instance Cantor Bar
+```
+
