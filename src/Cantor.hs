@@ -30,11 +30,11 @@
 --
 -- instance Cantor MyType
 -- @
--- 
+--
 -- = Recursive example
 --
 -- This should work nicely even with simple inductive types:
--- 
+--
 -- @
 -- data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic)
 --
@@ -44,7 +44,7 @@
 -- = Finite example
 --
 -- If your type is finite, you can specify this by deriving the @Finite@ typeclass, which is a subclass of @Cantor@:
--- 
+--
 -- @
 -- data Color = Red | Green | Blue deriving (Generic)
 --
@@ -52,15 +52,15 @@
 -- instance Finite Color
 -- @
 --
--- 
+--
 -- = Mutually-recursive types
--- 
+--
 -- If you have mutually-recursive types, unfortunately you'll need to manually specify the cardinality for now, but you can still get the to/from encodings for free:
--- 
+--
 -- @
 -- data Foo = FooNil | Foo Bool Bar deriving (Generic,Show)
 -- data Bar = BarNil | Bar Bool Foo deriving (Generic,Show)
--- 
+--
 -- instance Cantor Foo where
 --   cardinality = Countable
 -- instance Cantor Bar
@@ -85,7 +85,7 @@ import Data.Semigroup
 import Data.Functor.Identity
 import qualified Data.Functor.Const
 import Data.Proxy
-import Math.NumberTheory.Powers.Squares (integerSquareRoot')
+import Math.NumberTheory.Roots (integerSquareRoot)
 import Data.Void
 import Data.Bits
 import Data.Foldable (foldl')
@@ -530,7 +530,7 @@ cantorSplit i =
   in
   (x , y)
   where
-    w = (integerSquareRoot' (8 * i + 1) - 1) `div` 2
+    w = (integerSquareRoot (8 * i + 1) - 1) `div` 2
 
 cantorUnsplit :: (Integer , Integer) -> Integer
 cantorUnsplit (x , y) = (((x + y + 1) * (x + y)) `quot` 2) + y

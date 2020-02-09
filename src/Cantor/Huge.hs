@@ -14,8 +14,8 @@ module Cantor.Huge
 
 import Prelude hiding ((^^))
 import Control.Exception
-import Math.NumberTheory.Powers
 import Math.NumberTheory.Logarithms
+import Math.NumberTheory.Roots
 import Numeric.Natural
 
 -- | Lazy huge numbers with an efficient 'Ord' instance.
