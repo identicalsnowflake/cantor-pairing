@@ -12,27 +12,20 @@ import Cantor
 data MyType = MyType {
     value1 :: [ Maybe Bool ]
   , value2 :: Integer
-  } deriving (Generic)
-
-instance Cantor MyType
+  } deriving (Generic,Cantor)
 ```
 This should work nicely even with simple inductive types:
 
 ## Recursive example
 ```haskell
-data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic)
-
-instance Cantor a => Cantor (Tree a)
+data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic,Cantor)
 ```
 
 If your type is finite, you can specify this by deriving the `Finite` typeclass, which is a subclass of `Cantor`:
 
 ## Finite example
 ```haskell
-data Color = Red | Green | Blue deriving (Generic)
-
-instance Cantor Color
-instance Finite Color
+data Color = Red | Green | Blue deriving (Generic,Cantor,Finite)
 ```
 
 ## Mutually-recursive types

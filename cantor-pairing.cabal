@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                cantor-pairing
-version:             0.2.0.0
+version:             0.2.0.1
 synopsis:            Convert data to and from a natural number representation
 description:         Convert data to and from a natural number representation conveniently using GHC Generics.
 homepage:            https://github.com/identicalsnowflake/cantor-pairing

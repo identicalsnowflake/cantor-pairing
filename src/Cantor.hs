@@ -26,9 +26,7 @@
 -- data MyType = MyType {
 --     value1 :: [ Maybe Bool ]
 --   , value2 :: Integer
---   } deriving (Generic)
---
--- instance Cantor MyType
+--   } deriving (Generic,Cantor)
 -- @
 --
 -- = Recursive example
@@ -36,9 +34,7 @@
 -- This should work nicely even with simple inductive types:
 --
 -- @
--- data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic)
---
--- instance Cantor a => Cantor (Tree a)
+-- data Tree a = Leaf | Branch (Tree a) a (Tree a) deriving (Generic,Cantor)
 -- @
 --
 -- = Finite example
@@ -46,10 +42,7 @@
 -- If your type is finite, you can specify this by deriving the @Finite@ typeclass, which is a subclass of @Cantor@:
 --
 -- @
--- data Color = Red | Green | Blue deriving (Generic)
---
--- instance Cantor Color
--- instance Finite Color
+-- data Color = Red | Green | Blue deriving (Generic,Cantor,Finite)
 -- @
 --
 --
@@ -69,8 +62,7 @@
 
 module Cantor
        ( cantorEnumeration
-       , Cardinality(Countable)
-       , pattern Finite
+       , Cardinality(Countable,Finite)
        , Cantor(..)
        , Finite
        , fCardinality
@@ -121,7 +113,7 @@ enumerateSpace (ESpace c te _) = case c of
 
 -- | Enumerates all values of a type by mapping @toCantor@ over the naturals or finite subset of naturals with the correct cardinality.
 --
--- >>> take 5 cantorEnumeration :: [Data.IntSet.IntSet]
+-- >>> take 5 cantorEnumeration :: [ Data.IntSet.IntSet ]
 -- [fromList [],fromList [0],fromList [1],fromList [0,1],fromList [2]]
 {-# INLINABLE cantorEnumeration #-}
 cantorEnumeration :: Cantor a => [ a ]
@@ -162,20 +154,25 @@ instance (Finite a , Finite b) => Finite (a -> b)
 -- | @Cardinality@ can be either @Finite@ or @Countable@. @Countable@ cardinality entails that a type has the same cardinality as the natural numbers. Note that not all infinite types are countable: for example, @Natural -> Natural@ is an infinite type, but it is not countably infinite; the basic intuition is that there is no possible way to enumerate all values of type @Natural -> Natural@ without "skipping" almost all of them. This is in contrast to the naturals, where despite their being infinite, we can trivially (by definition, in fact!) enumerate all of them without skipping any.
 data Cardinality =
     Finite' Huge
-  | Countable
+  | Countable'
   deriving (Generic,Eq,Ord)
 
 instance Show Cardinality where
   show Countable = "Countable"
   show (Finite i) = "Finite " <> show i
 
--- | Finite cardinality.
+pattern Countable :: Cardinality
+pattern Countable <- Countable'
+  where
+    Countable = Countable'
+
 pattern Finite :: Integer -> Cardinality
 pattern Finite n <- Finite' (evalWith (^) -> n)
   where
     Finite n = Finite' (fromInteger n)
 
 {-# COMPLETE Finite, Countable #-}
+{-# COMPLETE Finite', Countable #-}
 
 -- | The @Finite@ typeclass simply entails that the @Cardinality@ of the set is finite.
 class Cantor a => Finite a where

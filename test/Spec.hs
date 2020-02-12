@@ -13,6 +13,7 @@ import Test.Hspec
 
 import Cantor
 
+
 data TreeL a = NodeL | BranchL (TreeL a) a (TreeL a) deriving (Generic,Eq)
 
 instance Cantor a => Cantor (TreeL a)
