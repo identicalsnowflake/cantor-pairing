@@ -41,3 +41,5 @@ instance Cantor Foo where
 instance Cantor Bar
 ```
 
+Once you have a valid instance of `Cantor a`, you may lazily inspect all values of the type using `cantorEnumeration :: [ a ]` and convert a point to and from its integer encoding using `toCantor :: Integer -> a` and `fromCantor :: a -> Integer`.
+
