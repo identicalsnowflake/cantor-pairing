@@ -41,7 +41,7 @@ main = hspec $ do
     it "returns 6 for the cardinality of Bool x C" $
       (fCardinality @(Bool , C)) `shouldBe` 6
 
-    it "returns 9 for the cardinality of C x Bool" $
+    it "returns 6 for the cardinality of C x Bool" $
       (fCardinality @(C , Bool)) `shouldBe` 6
 
     it "returns 0 for the cardinality of Void x Bool" $
