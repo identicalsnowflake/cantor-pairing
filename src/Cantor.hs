@@ -14,19 +14,25 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ViewPatterns #-}
 
--- | Cantor pairing gives us an isomorphism between a single natural number and pairs of natural numbers. This package provides a modern API to this functionality using GHC generics, allowing the encoding of arbitrary combinations of finite or countably infinite types in natural number form.
---
--- As a user, all you need to do is derive generic and get the instances for free.
+-- | This package implements a beefed-up version of `Enum` via GHC generics called `Cantor` which works for both finite and countably-infinite types.
 --
 -- = Example
 -- @
 -- import GHC.Generics
 -- import Cantor
---
+-- 
 -- data MyType = MyType {
 --     value1 :: [ Maybe Bool ]
 --   , value2 :: Integer
---   } deriving (Generic,Cantor)
+--   } deriving (Generic,Cantor,Show)
+-- 
+-- example :: IO ()
+-- example = do
+--   putStrLn "The first 5 elements of the enumeration are:"
+--   print $ take 5 xs
+--   where
+--     xs :: [ MyType ]
+--     xs = cantorEnumeration
 -- @
 --
 -- = Recursive example
